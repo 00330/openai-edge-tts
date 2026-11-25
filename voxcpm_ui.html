@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>本地声音克隆 · VoxCPM</title>
+<style>
+  :root{--bg:#0d1117;--panel:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;
+        --accent:#2f81f7;--accent-hover:#1f6feb;--ok:#3fb950;--err:#f85149;--warn:#d29922}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);line-height:1.6;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 20px 64px}
+  h1{font-size:22px;margin:0 0 6px;font-weight:600}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:8px}
+  .banner{background:rgba(210,153,34,.12);border:1px solid rgba(210,153,34,.4);
+          color:#e3b341;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:20px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px}
+  h2{font-size:15px;margin:0 0 14px;font-weight:600;color:var(--text)}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  textarea,input[type=text],select{width:100%;padding:10px 12px;background:var(--bg);color:var(--text);
+    border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit}
+  textarea{min-height:120px;resize:vertical;line-height:1.7}
+  textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+  .field{flex:1;min-width:200px}
+  button{border:none;border-radius:8px;font-size:14px;cursor:pointer;padding:9px 18px;
+         transition:.15s;font-family:inherit}
+  .btn-primary{background:var(--accent);color:#fff;font-weight:500}
+  .btn-primary:hover:not(:disabled){background:var(--accent-hover)}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed}
+  .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+  .btn-ghost:hover{color:var(--text);border-color:var(--muted)}
+  .btn-sm{font-size:12px;padding:4px 10px;border-radius:6px}
+  .voice-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .voice-item{display:flex;align-items:center;gap:12px;background:var(--bg);
+    border:1px solid var(--border);border-radius:8px;padding:10px 14px}
+  .voice-item.active{border-color:var(--accent);background:rgba(47,129,247,.08)}
+  .voice-name{font-size:14px;font-weight:500}
+  .voice-meta{font-size:12px;color:var(--muted)}
+  .voice-actions{margin-left:auto;display:flex;gap:6px}
+  .status{font-size:13px;color:var(--muted)}
+  .status.ok{color:var(--ok)} .status.err{color:var(--err)}
+  audio{width:100%;margin-top:14px;border-radius:8px}
+  .hidden{display:none}
+  .err-box{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.4);color:#ffa198;
+    padding:12px 14px;border-radius:8px;font-size:13px;margin-top:14px;white-space:pre-wrap}
+  .progress{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-top:12px}
+  .progress-bar{height:100%;width:30%;background:var(--accent);border-radius:3px;
+    animation:slide 1.4s ease-in-out infinite}
+  @keyframes slide{0%{margin-left:-30%}100%{margin-left:100%}}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px}
+  .badge{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;
+    background:rgba(63,185,80,.15);color:var(--ok);margin-left:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>本地声音克隆 <span class="badge" id="modelBadge">加载中…</span></h1>
+  <div class="sub">VoxCPM-0.5B · 纯 CPU 运行 · 完全免费 · 数据不出本机</div>
+  <div class="banner" id="speedWarn">
+    这台机器没有 GPU，生成速度约为 1 秒音频需要 9～13 秒。一句话可能要等 1～2 分钟。
+  </div>
+
+  <!-- 音色库 -->
+  <div class="card">
+    <h2>① 我的音色</h2>
+    <div class="voice-list" id="voiceList">
+      <div class="voice-meta">还没有音色，先在下面上传一段参考音频。</div>
+    </div>
+
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+      <div class="row">
+        <div class="field">
+          <label>音色名称</label>
+          <input type="text" id="vName" placeholder="例如：我的声音">
+        </div>
+        <div class="field">
+          <label>参考音频（5～10 秒，干净人声）</label>
+          <input type="file" id="vFile" accept="audio/*"
+                 style="width:100%;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px">
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <label>参考音频的逐字转录（必须和音频内容完全一致）</label>
+        <textarea id="vText" style="min-height:70px"
+          placeholder="把你上传的那段音频里说的每个字原样打出来，例如：大家好，这是我的声音样本。"></textarea>
+        <div class="hint">这段转录是克隆准确度的关键，务必一字不差。</div>
+      </div>
+      <div class="row">
+        <button class="btn-primary" id="uploadBtn">上传并保存音色</button>
+        <span class="status" id="uploadStatus"></span>
+      </div>
+      <div class="err-box hidden" id="uploadErr"></div>
+    </div>
+  </div>
+
+  <!-- 生成 -->
+  <div class="card">
+    <h2>② 合成语音</h2>
+    <label>要合成的文本</label>
+    <textarea id="text" placeholder="输入想让这个声音说的话…">你好，这是用我自己的声音合成出来的语音。</textarea>
+    <div class="row">
+      <div class="field">
+        <label>使用音色</label>
+        <select id="voiceSelect"></select>
+      </div>
+      <div class="field" style="max-width:200px">
+        <label>推理步数（越少越快）</label>
+        <select id="steps">
+          <option value="5">5 · 最快</option>
+          <option value="8" selected>8 · 平衡</option>
+          <option value="10">10 · 质量</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn-primary" id="genBtn">生成语音</button>
+      <button class="btn-ghost" id="dlBtn" disabled>下载 WAV</button>
+      <span class="status" id="genStatus"></span>
+    </div>
+    <div class="progress hidden" id="prog"><div class="progress-bar"></div></div>
+    <div class="err-box hidden" id="genErr"></div>
+    <audio id="player" controls class="hidden"></audio>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const API = '';
+let voices = [];
+let currentVoice = null;
+let lastUrl = null;
+
+async function checkHealth(){
+  try{
+    const r = await fetch('/health');
+    const h = await r.json();
+    const b = $('modelBadge');
+    if(h.ok){ b.textContent = '就绪'; b.style.color = 'var(--ok)'; b.style.background='rgba(63,185,80,.15)'; }
+    else if(h.loading){ b.textContent = '模型加载中…'; }
+    else { b.textContent = '加载失败'; b.style.color='var(--err)'; }
+    return h.ok;
+  }catch(e){ return false; }
+}
+
+async function loadVoices(){
+  const r = await fetch('/api/voices');
+  const d = await r.json();
+  voices = d.voices || [];
+  const list = $('voiceList');
+  const sel = $('voiceSelect');
+  if(!voices.length){
+    list.innerHTML = '<div class="voice-meta">还没有音色，先在下面上传一段参考音频。</div>';
+    sel.innerHTML = '<option value="">（无）</option>';
+    return;
+  }
+  list.innerHTML = '';
+  sel.innerHTML = '';
+  for(const v of voices){
+    const div = document.createElement('div');
+    div.className = 'voice-item' + (v.id === currentVoice ? ' active' : '');
+    div.innerHTML = `
+      <div>
+        <div class="voice-name">${escapeHtml(v.name)}</div>
+        <div class="voice-meta">${v.duration}s · ${escapeHtml(v.transcript.slice(0,28))}${v.transcript.length>28?'…':''}</div>
+      </div>
+      <div class="voice-actions">
+        <button class="btn-ghost btn-sm" data-play="${v.id}">试听</button>
+        <button class="btn-ghost btn-sm" data-del="${v.id}">删除</button>
+      </div>`;
+    div.onclick = e => {
+      if(e.target.dataset.play || e.target.dataset.del) return;
+      currentVoice = v.id; sel.value = v.id; loadVoices();
+    };
+    list.appendChild(div);
+
+    const o = document.createElement('option');
+    o.value = v.id; o.textContent = v.name;
+    sel.appendChild(o);
+  }
+  if(!currentVoice && voices.length){ currentVoice = voices[0].id; }
+  sel.value = currentVoice;
+
+  list.querySelectorAll('[data-play]').forEach(b => {
+    b.onclick = () => {
+      const a = new Audio('/api/preview/' + b.dataset.play);
+      a.play();
+    };
+  });
+  list.querySelectorAll('[data-del]').forEach(b => {
+    b.onclick = async () => {
+      if(!confirm('删除这个音色？')) return;
+      await fetch('/api/voices/' + b.dataset.del, {method:'DELETE'});
+      if(currentVoice === b.dataset.del) currentVoice = null;
+      loadVoices();
+    };
+  });
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+$('voiceSelect').onchange = e => { currentVoice = e.target.value; loadVoices(); };
+
+// 上传音色
+$('uploadBtn').onclick = async () => {
+  const name = $('vName').value.trim();
+  const file = $('vFile').files[0];
+  const transcript = $('vText').value.trim();
+  const err = $('uploadErr'), st = $('uploadStatus');
+  err.classList.add('hidden');
+  if(!name || !file || !transcript){
+    err.textContent = '名称、音频、转录文本三项都要填。';
+    err.classList.remove('hidden'); return;
+  }
+  st.textContent = '上传中…';
+  const fd = new FormData();
+  fd.append('name', name); fd.append('transcript', transcript); fd.append('file', file);
+  try{
+    const r = await fetch('/api/voices', {method:'POST', body: fd});
+    if(!r.ok){ const j = await r.json(); throw new Error(j.detail || ('HTTP '+r.status)); }
+    const v = await r.json();
+    st.textContent = '已保存'; st.className = 'status ok';
+    $('vName').value = ''; $('vFile').value = ''; $('vText').value = '';
+    currentVoice = v.id;
+    await loadVoices();
+  }catch(e){
+    st.textContent = ''; err.textContent = '上传失败：' + e.message; err.classList.remove('hidden');
+  }
+};
+
+// 生成
+$('genBtn').onclick = async () => {
+  const text = $('text').value.trim();
+  const err = $('genErr'), st = $('genStatus');
+  err.classList.add('hidden');
+  if(!text){ err.textContent='请输入文本'; err.classList.remove('hidden'); return; }
+  if(!currentVoice){ err.textContent='先上传一个音色'; err.classList.remove('hidden'); return; }
+
+  $('genBtn').disabled = true; $('dlBtn').disabled = true;
+  $('prog').classList.remove('hidden');
+  $('player').classList.add('hidden');
+  const steps = Number($('steps').value);
+  const est = Math.max(3, Math.round(text.length * 1.2 * (steps/8)));
+  st.className = 'status';
+  st.textContent = `生成中… 预计 ${est} 秒左右`;
+  const t0 = performance.now();
+
+  try{
+    const r = await fetch('/api/speak', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text, voice_id: currentVoice, steps})
+    });
+    if(!r.ok){ const j = await r.json(); throw new Error(j.detail || ('HTTP '+r.status)); }
+    const blob = await r.blob();
+    if(lastUrl) URL.revokeObjectURL(lastUrl);
+    lastUrl = URL.createObjectURL(blob);
+    $('player').src = lastUrl;
+    $('player').classList.remove('hidden');
+    $('player').play().catch(()=>{});
+    $('dlBtn').disabled = false;
+    $('dlBtn').onclick = () => {
+      const a = document.createElement('a');
+      a.href = lastUrl; a.download = `voxcpm_${Date.now()}.wav`; a.click();
+    };
+    const sec = ((performance.now()-t0)/1000).toFixed(1);
+    const audioSec = r.headers.get('X-Audio-Seconds');
+    const rtf = r.headers.get('X-RTF');
+    st.className = 'status ok';
+    st.textContent = `完成 · 音频 ${audioSec}s · 耗时 ${sec}s · RTF ${rtf}`;
+  }catch(e){
+    st.className = 'status err'; st.textContent = '失败';
+    err.textContent = e.message; err.classList.remove('hidden');
+  }finally{
+    $('genBtn').disabled = false;
+    $('prog').classList.add('hidden');
+  }
+};
+
+(async () => {
+  await loadVoices();
+  const ready = await checkHealth();
+  if(!ready) setTimeout(checkHealth, 3000);
+})();
+</script>
+</body>
+</html>

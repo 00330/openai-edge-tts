@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edge TTS 控制台</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3;
+    --muted:#8b949e; --accent:#2f81f7; --accent-hover:#1f6feb;
+    --ok:#3fb950; --err:#f85149;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+    line-height:1.6;
+  }
+  .wrap{max-width:920px; margin:0 auto; padding:32px 20px 64px}
+  header{margin-bottom:28px}
+  h1{font-size:22px; margin:0 0 6px; font-weight:600; letter-spacing:.3px}
+  .sub{color:var(--muted); font-size:13px}
+  .sub code{background:var(--panel); padding:2px 6px; border-radius:4px; font-size:12px}
+  .card{
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:20px; margin-bottom:16px;
+  }
+  label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px}
+  textarea{
+    width:100%; min-height:150px; resize:vertical; padding:12px;
+    background:var(--bg); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; font-size:14px; font-family:inherit; line-height:1.7;
+  }
+  textarea:focus,select:focus,input:focus{outline:none; border-color:var(--accent)}
+  .row{display:flex; gap:12px; flex-wrap:wrap; margin-top:16px}
+  .field{flex:1; min-width:180px}
+  .label-row{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px}
+  .label-row label{margin-bottom:0}
+  .btn-mini{
+    background:transparent; border:1px solid var(--border); color:var(--muted);
+    font-size:12px; padding:3px 12px; border-radius:999px; cursor:pointer;
+    transition:.15s; font-weight:400;
+  }
+  .btn-mini:hover:not(:disabled){color:var(--text); border-color:var(--accent)}
+  .btn-mini:disabled{opacity:.5; cursor:not-allowed}
+  select,input[type=text]{
+    width:100%; padding:9px 10px; background:var(--bg); color:var(--text);
+    border:1px solid var(--border); border-radius:8px; font-size:13px;
+  }
+  .speed-row{display:flex; align-items:center; gap:12px}
+  input[type=range]{flex:1; accent-color:var(--accent)}
+  .speed-val{font-variant-numeric:tabular-nums; font-size:13px; min-width:52px; text-align:right}
+  .meta{display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:var(--muted)}
+  button{
+    border:none; border-radius:8px; font-size:14px; font-weight:500;
+    cursor:pointer; padding:10px 20px; transition:.15s;
+  }
+  .btn-primary{background:var(--accent); color:#fff}
+  .btn-primary:hover:not(:disabled){background:var(--accent-hover)}
+  .btn-primary:disabled{opacity:.55; cursor:not-allowed}
+  .btn-ghost{background:transparent; color:var(--muted); border:1px solid var(--border)}
+  .btn-ghost:hover{color:var(--text); border-color:var(--muted)}
+  .actions{display:flex; gap:10px; align-items:center; margin-top:18px; flex-wrap:wrap}
+  audio{width:100%; margin-top:16px; border-radius:8px}
+  .status{margin-left:auto; font-size:13px; color:var(--muted)}
+  .status.ok{color:var(--ok)}
+  .status.err{color:var(--err)}
+  .hidden{display:none}
+  .err-box{
+    background:rgba(248,81,73,.1); border:1px solid rgba(248,81,73,.4);
+    color:#ffa198; padding:12px 14px; border-radius:8px; font-size:13px;
+    margin-top:14px; white-space:pre-wrap; word-break:break-word;
+  }
+  .chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+  .chip{
+    background:var(--bg); border:1px solid var(--border); color:var(--muted);
+    font-size:12px; padding:4px 10px; border-radius:999px; cursor:pointer;
+  }
+  .chip:hover{color:var(--text); border-color:var(--accent)}
+  .api-hint{
+    margin-top:20px; padding-top:16px; border-top:1px solid var(--border);
+    font-size:12px; color:var(--muted);
+  }
+  .api-hint code{
+    display:block; background:var(--bg); padding:10px 12px; border-radius:6px;
+    margin-top:8px; overflow-x:auto; white-space:pre; color:#a5d6ff;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Edge TTS 控制台</h1>
+    <div class="sub">免费语音合成 · 无需 API Key · 音色来自微软 Edge</div>
+  </header>
+
+  <div class="card">
+    <label for="text">要合成的文本</label>
+    <textarea id="text" placeholder="在这里输入文字，支持中英日韩等多语言…">你好，这是一段由 Edge TTS 免费合成的语音。</textarea>
+    <div class="meta">
+      <span id="count">0 字符</span>
+      <span>单次建议 5000 字以内</span>
+    </div>
+
+    <div class="chips">
+      <span class="chip" data-text="你好，欢迎使用免费的语音合成服务。">中文示例</span>
+      <span class="chip" data-text="Hello, this is a free text-to-speech service.">English</span>
+      <span class="chip" data-text="こんにちは、これは無料の音声合成テストです。">日本語</span>
+      <span class="chip" data-text="안녕하세요, 무료 음성 합성 테스트입니다.">한국어</span>
+    </div>
+
+    <div class="row">
+      <div class="field" style="flex:2">
+        <div class="label-row">
+          <label for="voice">音色</label>
+          <button type="button" class="btn-mini" id="preview">试听</button>
+        </div>
+        <select id="voice"></select>
+      </div>
+      <div class="field">
+        <label for="format">格式</label>
+        <select id="format">
+          <option value="mp3">MP3</option>
+          <option value="wav">WAV</option>
+          <option value="opus">Opus</option>
+          <option value="aac">AAC</option>
+          <option value="flac">FLAC</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field" style="flex:1">
+        <label for="speed">语速</label>
+        <div class="speed-row">
+          <input type="range" id="speed" min="0.5" max="2" step="0.05" value="1">
+          <span class="speed-val" id="speedVal">1.00x</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="gen">生成语音</button>
+      <button class="btn-ghost" id="stop" disabled>停止</button>
+      <button class="btn-ghost" id="download" class="hidden" disabled>下载</button>
+      <span class="status" id="status"></span>
+    </div>
+
+    <div id="err" class="err-box hidden"></div>
+
+    <audio id="player" controls class="hidden"></audio>
+    <audio id="previewPlayer" class="hidden"></audio>
+
+    <div class="api-hint">
+      API 端点（OpenAI 兼容）
+      <code>POST http://127.0.0.1:5051/v1/audio/speech
+Authorization: Bearer &lt;API_KEY&gt;
+Content-Type: application/json
+
+{"input":"你好","voice":"zh-CN-XiaoxiaoNeural","speed":1.0}</code>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const textEl = $('text'), voiceEl = $('voice'), formatEl = $('format');
+const speedEl = $('speed'), speedVal = $('speedVal');
+const genBtn = $('gen'), stopBtn = $('stop'), dlBtn = $('download');
+const statusEl = $('status'), errEl = $('err'), player = $('player');
+
+let currentUrl = null;
+let controller = null;
+let voicesCache = [];
+
+const PRIORITY_LOCALES = ['zh-CN','zh-TW','zh-HK','en-US','ja-JP','ko-KR'];
+
+function updateCount(){
+  $('count').textContent = `${textEl.value.length} 字符`;
+}
+textEl.addEventListener('input', updateCount);
+updateCount();
+
+speedEl.addEventListener('input', () => {
+  speedVal.textContent = Number(speedEl.value).toFixed(2) + 'x';
+});
+
+document.querySelectorAll('.chip').forEach(c => {
+  c.addEventListener('click', () => {
+    textEl.value = c.dataset.text;
+    updateCount();
+  });
+});
+
+async function loadVoices(){
+  try{
+    const r = await fetch('/ui/voices');
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    voicesCache = data.voices || [];
+    const groups = {};
+    for(const v of voicesCache){
+      (groups[v.language] = groups[v.language] || []).push(v);
+    }
+    const locales = Object.keys(groups).sort((a,b) => {
+      const ia = PRIORITY_LOCALES.indexOf(a), ib = PRIORITY_LOCALES.indexOf(b);
+      if(ia !== -1 || ib !== -1){
+        if(ia === -1) return 1;
+        if(ib === -1) return -1;
+        return ia - ib;
+      }
+      return a.localeCompare(b);
+    });
+    voiceEl.innerHTML = '';
+    for(const loc of locales){
+      const og = document.createElement('optgroup');
+      og.label = loc;
+      for(const v of groups[loc].sort((x,y) => x.name.localeCompare(y.name))){
+        const o = document.createElement('option');
+        o.value = v.name;
+        o.textContent = `${v.name} · ${v.gender === 'Female' ? '女' : '男'}`;
+        og.appendChild(o);
+      }
+      voiceEl.appendChild(og);
+    }
+    const prefer = voicesCache.find(v => v.name === 'zh-CN-XiaoxiaoNeural');
+    if(prefer) voiceEl.value = prefer.name;
+  }catch(e){
+    voiceEl.innerHTML = '<option value="zh-CN-XiaoxiaoNeural">zh-CN-XiaoxiaoNeural</option>';
+    console.warn('加载音色失败', e);
+  }
+}
+
+function setStatus(msg, cls){
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (cls ? ' ' + cls : '');
+}
+function showErr(msg){
+  errEl.textContent = msg;
+  errEl.classList.remove('hidden');
+}
+function clearErr(){ errEl.classList.add('hidden'); }
+
+genBtn.addEventListener('click', async () => {
+  const text = textEl.value.trim();
+  if(!text){ showErr('请先输入文本'); return; }
+  clearErr();
+  genBtn.disabled = true;
+  stopBtn.disabled = false;
+  setStatus('生成中…');
+
+  if(currentUrl){ URL.revokeObjectURL(currentUrl); currentUrl = null; }
+  player.classList.add('hidden');
+  dlBtn.classList.add('hidden');
+
+  controller = new AbortController();
+  const t0 = performance.now();
+
+  try{
+    const r = await fetch('/ui/speech', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        input: text,
+        voice: voiceEl.value,
+        speed: Number(speedEl.value),
+        response_format: formatEl.value,
+      }),
+      signal: controller.signal,
+    });
+
+    if(!r.ok){
+      let msg = 'HTTP ' + r.status;
+      try{ const j = await r.json(); msg = j.details || j.error || msg; }catch(_){}
+      throw new Error(msg);
+    }
+
+    const blob = await r.blob();
+    currentUrl = URL.createObjectURL(blob);
+    player.src = currentUrl;
+    player.classList.remove('hidden');
+    dlBtn.classList.remove('hidden');
+    dlBtn.disabled = false;
+    dlBtn.onclick = () => {
+      const a = document.createElement('a');
+      a.href = currentUrl;
+      a.download = `tts_${Date.now()}.${formatEl.value}`;
+      a.click();
+    };
+    player.play().catch(()=>{});
+    const sec = ((performance.now() - t0)/1000).toFixed(1);
+    setStatus(`完成 · ${(blob.size/1024).toFixed(0)} KB · ${sec}s`, 'ok');
+  }catch(e){
+    if(e.name === 'AbortError'){ setStatus('已取消'); }
+    else { setStatus('失败', 'err'); showErr(e.message); }
+  }finally{
+    genBtn.disabled = false;
+    stopBtn.disabled = true;
+    controller = null;
+  }
+});
+
+stopBtn.addEventListener('click', () => {
+  if(controller) controller.abort();
+});
+
+// ---- 音色试听 ----
+const previewBtn = $('preview');
+const previewPlayer = $('previewPlayer');
+let previewUrl = null;
+
+previewBtn.addEventListener('click', async () => {
+  const voice = voiceEl.value;
+  if(!voice) return;
+  previewBtn.disabled = true;
+  previewBtn.textContent = '合成中…';
+  try{
+    const r = await fetch('/ui/speech', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        input: '你好，我是' + voice.split('-')[2].replace('Neural','') + '，这是我的声音。',
+        voice,
+        speed: Number(speedEl.value),
+        response_format: 'mp3',
+      }),
+    });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    if(previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = URL.createObjectURL(blob);
+    previewPlayer.src = previewUrl;
+    await previewPlayer.play();
+    previewBtn.textContent = '试听';
+  }catch(e){
+    previewBtn.textContent = '试听';
+    showErr('试听失败：' + e.message);
+  }finally{
+    previewBtn.disabled = false;
+  }
+});
+
+previewPlayer.addEventListener('ended', () => { previewBtn.textContent = '试听'; });
+
+loadVoices();
+</script>
+</body>
+</html>
